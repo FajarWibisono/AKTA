@@ -288,7 +288,7 @@ def generate_pdf(name, age, tetap, tidak_tetap, total_pemasukan, harga_emas, all
     story.append(HRFlowable(width="100%", thickness=1, color=_C_GREEN_MED, spaceAfter=4))
     story.append(Paragraph(
         "AKTA - Anggaran Keuangan Tahunan | "
-        "Membantu Anda merencanakan keuangan dengan lebih baik",
+        "Membantu Anda merencanakan keuangan dengan lebih baik | HumanisGroup",
         S['footer']
     ))
 
