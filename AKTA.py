@@ -528,4 +528,4 @@ if st.session_state.get('calculated', False):
 
 # Footer
 st.markdown("---")
-st.caption("💡 AKTA - Anggaran Keuangan Tahunan | Membantu Anda merencanakan keuangan dengan lebih baik")
+st.caption("💡 AKTA - Anggaran Keuangan Tahunan | Membantu Anda merencanakan keuangan dengan lebih baik |  HumanisGroup")
