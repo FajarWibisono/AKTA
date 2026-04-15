@@ -1,9 +1,16 @@
 import streamlit as st
 from datetime import datetime
 from io import BytesIO
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.backends.backend_pdf import PdfPages
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph,
+    Spacer, HRFlowable
+)
 
 # Konfigurasi halaman
 st.set_page_config(
@@ -46,196 +53,246 @@ def calculate_budget(total_income):
     
     return allocations
 
-# Fungsi untuk generate PDF dengan matplotlib
+# Warna tema
+_C_GREEN_DARK  = colors.HexColor('#1B5E20')
+_C_GREEN_MED   = colors.HexColor('#2E7D32')
+_C_GREEN_LIGHT = colors.HexColor('#C8E6C9')
+_C_GREEN_PALE  = colors.HexColor('#E8F5E9')
+_C_STRIPE      = colors.HexColor('#F5F5F5')
+_C_RED_DARK    = colors.HexColor('#C62828')
+_C_RED_LIGHT   = colors.HexColor('#FFCDD2')
+_C_GRAY        = colors.HexColor('#757575')
+
+
+def _pdf_styles():
+    base = getSampleStyleSheet()
+    return {
+        'title': ParagraphStyle('title', parent=base['Normal'],
+            fontSize=18, fontName='Helvetica-Bold',
+            textColor=_C_GREEN_MED, alignment=TA_CENTER, spaceAfter=4),
+        'subtitle': ParagraphStyle('subtitle', parent=base['Normal'],
+            fontSize=10, textColor=_C_GRAY, alignment=TA_CENTER, spaceAfter=6),
+        'section': ParagraphStyle('section', parent=base['Normal'],
+            fontSize=12, fontName='Helvetica-Bold',
+            textColor=_C_GREEN_DARK, spaceBefore=10, spaceAfter=4),
+        'caption': ParagraphStyle('caption', parent=base['Normal'],
+            fontSize=8, fontName='Helvetica-Oblique',
+            textColor=_C_GRAY, spaceAfter=4),
+        'normal': ParagraphStyle('normal', parent=base['Normal'], fontSize=10),
+        'right': ParagraphStyle('right', parent=base['Normal'],
+            fontSize=10, alignment=TA_RIGHT),
+        'center': ParagraphStyle('center', parent=base['Normal'],
+            fontSize=9, alignment=TA_CENTER),
+        'footer': ParagraphStyle('footer', parent=base['Normal'],
+            fontSize=8, fontName='Helvetica-Oblique',
+            textColor=_C_GRAY, alignment=TA_CENTER),
+        'rec_surplus': ParagraphStyle('rec_surplus', parent=base['Normal'],
+            fontSize=9, textColor=_C_GREEN_DARK, leading=14,
+            leftIndent=6, rightIndent=6),
+        'rec_defisit': ParagraphStyle('rec_defisit', parent=base['Normal'],
+            fontSize=9, textColor=_C_RED_DARK, leading=14,
+            leftIndent=6, rightIndent=6),
+    }
+
+
+# Fungsi untuk generate PDF dengan ReportLab
 def generate_pdf(name, age, tetap, tidak_tetap, total_pemasukan, harga_emas, allocations):
     buffer = BytesIO()
-    
-    # Create PDF
-    with PdfPages(buffer) as pdf:
-        # Page 1
-        fig = plt.figure(figsize=(8.27, 11.69))  # A4 size
-        fig.patch.set_facecolor('white')
-        
-        # Title
-        plt.text(0.5, 0.95, 'ANGGARAN KEUANGAN TAHUNAN (AKTA)', 
-                ha='center', va='top', fontsize=20, fontweight='bold',
-                color='#2E7D32')
-        
-        plt.text(0.5, 0.92, '━' * 50, ha='center', va='top', fontsize=8, color='#2E7D32')
-        
-        # Data Diri Section
-        y_pos = 0.87
-        plt.text(0.1, y_pos, 'DATA DIRI', fontsize=14, fontweight='bold', color='#1B5E20')
-        y_pos -= 0.03
-        
-        plt.text(0.12, y_pos, f'Nama:', fontsize=11, fontweight='bold')
-        plt.text(0.35, y_pos, name, fontsize=11)
-        y_pos -= 0.025
-        
-        plt.text(0.12, y_pos, f'Usia:', fontsize=11, fontweight='bold')
-        plt.text(0.35, y_pos, f'{age} tahun', fontsize=11)
-        y_pos -= 0.025
-        
-        plt.text(0.12, y_pos, f'Tanggal Dibuat:', fontsize=11, fontweight='bold')
-        plt.text(0.35, y_pos, datetime.now().strftime("%d %B %Y"), fontsize=11)
-        y_pos -= 0.05
-        
-        # Pemasukan Tahunan Section
-        plt.text(0.1, y_pos, 'PEMASUKAN TAHUNAN', fontsize=14, fontweight='bold', color='#1B5E20')
-        y_pos -= 0.03
-        
-        plt.text(0.12, y_pos, 'Tetap:', fontsize=11, fontweight='bold')
-        plt.text(0.5, y_pos, format_idr(tetap), fontsize=11, ha='right')
-        y_pos -= 0.025
-        
-        plt.text(0.12, y_pos, 'Tidak Tetap:', fontsize=11, fontweight='bold')
-        plt.text(0.5, y_pos, format_idr(tidak_tetap), fontsize=11, ha='right')
-        y_pos -= 0.025
-        
-        plt.text(0.12, y_pos, 'Total Pemasukan:', fontsize=11, fontweight='bold')
-        plt.text(0.5, y_pos, format_idr(total_pemasukan), fontsize=11, ha='right', 
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='#C8E6C9', edgecolor='#2E7D32'))
-        y_pos -= 0.025
-        
-        plt.text(0.12, y_pos, 'Harga Per Gram Emas:', fontsize=11, fontweight='bold')
-        plt.text(0.5, y_pos, format_idr(harga_emas), fontsize=11, ha='right')
-        y_pos -= 0.05
-        
-        # Pengeluaran Tahunan Section
-        plt.text(0.1, y_pos, 'PENGELUARAN TAHUNAN', fontsize=14, fontweight='bold', color='#1B5E20')
-        y_pos -= 0.025
-        plt.text(0.1, y_pos, 'Pengeluaran tahunan ini merupakan pengeluaran yang dibagi pos sesuai', 
-                fontsize=9, style='italic', color='gray')
-        y_pos -= 0.02
-        plt.text(0.1, y_pos, 'prioritas pengeluaran keuangan', fontsize=9, style='italic', color='gray')
-        y_pos -= 0.03
-        
-        # Header tabel
-        rect = mpatches.Rectangle((0.1, y_pos-0.025), 0.8, 0.025, 
-                                  linewidth=1, edgecolor='#2E7D32', 
-                                  facecolor='#2E7D32')
-        fig.add_artist(rect)
-        
-        plt.text(0.15, y_pos-0.0125, 'Pos Pengeluaran', fontsize=10, 
-                fontweight='bold', color='white', va='center')
-        plt.text(0.45, y_pos-0.0125, 'Persentase', fontsize=10, 
-                fontweight='bold', color='white', va='center', ha='center')
-        plt.text(0.85, y_pos-0.0125, 'Jumlah (Rp)', fontsize=10, 
-                fontweight='bold', color='white', va='center', ha='right')
-        y_pos -= 0.04
-        
-        # Data rows
-        pengeluaran_data = [
-            ('Pos Zakat', '(2.5%)', format_idr(allocations['zakat'])),
-            ('Pos ISWAF', '(Max 7.5%)', format_idr(allocations['iswaf'])),
-            ('Pos Utang', '(Max 35%)', format_idr(allocations['utang_total'])),
-            ('  a. Utang Produktif', 'Max (20%)', format_idr(allocations['utang_produktif'])),
-            ('  b. Utang Konsumtif', 'Max (15%)', format_idr(allocations['utang_konsumtif'])),
-            ('Pos Kontribusi Asuransi', 'min (10%)', format_idr(allocations['kontribusi_asuransi'])),
-            ('Pos Dana Masa Depan', 'min (10%)', format_idr(allocations['dana_masa_depan'])),
-            ('Pos Belanja Sekarang', '', format_idr(allocations['belanja_sekarang'])),
-        ]
-        
-        for i, (pos, persen, jumlah) in enumerate(pengeluaran_data):
-            bg_color = '#F5F5F5' if i % 2 == 0 else 'white'
-            if i == 2:  # Highlight Pos Utang
-                bg_color = '#E8F5E9'
-            
-            rect = mpatches.Rectangle((0.1, y_pos-0.022), 0.8, 0.022, 
-                                      linewidth=0.5, edgecolor='gray', 
-                                      facecolor=bg_color)
-            fig.add_artist(rect)
-            
-            plt.text(0.12, y_pos-0.011, pos, fontsize=9, va='center')
-            plt.text(0.45, y_pos-0.011, persen, fontsize=8, va='center', ha='center')
-            plt.text(0.88, y_pos-0.011, jumlah, fontsize=9, va='center', ha='right')
-            y_pos -= 0.022
-        
-        y_pos -= 0.02
-        
-        # Total dan Status
-        surplus_defisit = allocations['surplus_defisit']
-        status = "Surplus" if surplus_defisit >= 0 else "Defisit"
-        status_color = '#2E7D32' if surplus_defisit >= 0 else '#C62828'
-        
-        # Total Anggaran
-        rect = mpatches.Rectangle((0.1, y_pos-0.025), 0.8, 0.025, 
-                                  linewidth=1, edgecolor='#2E7D32', 
-                                  facecolor='#C8E6C9')
-        fig.add_artist(rect)
-        plt.text(0.15, y_pos-0.0125, 'Total Anggaran', fontsize=11, 
-                fontweight='bold', va='center')
-        plt.text(0.85, y_pos-0.0125, format_idr(allocations['total_anggaran']), 
-                fontsize=11, fontweight='bold', va='center', ha='right')
-        y_pos -= 0.03
-        
-        # Status
-        rect = mpatches.Rectangle((0.1, y_pos-0.025), 0.8, 0.025, 
-                                  linewidth=1, edgecolor=status_color, 
-                                  facecolor=status_color)
-        fig.add_artist(rect)
-        plt.text(0.15, y_pos-0.0125, status, fontsize=11, 
-                fontweight='bold', color='white', va='center')
-        plt.text(0.85, y_pos-0.0125, format_idr(abs(surplus_defisit)), 
-                fontsize=11, fontweight='bold', color='white', va='center', ha='right')
-        y_pos -= 0.04
-        
-        # Rekomendasi
-        if surplus_defisit < 0:
-            recommendation_text = (
-                "⚠️ PERINGATAN: Anggaran Anda mengalami DEFISIT. "
-                "Silakan tinjau kembali pos-pos pengeluaran yang mungkin melebihi "
-                "persentase yang disarankan. Pertimbangkan untuk mengurangi pos "
-                "Belanja Sekarang atau meningkatkan pemasukan."
-            )
-            box_color = '#FFCDD2'
-            text_color = '#C62828'
-        else:
-            recommendation_text = (
-                "✓ SELAMAT: Anggaran Anda mengalami SURPLUS! "
-                "Disarankan untuk menambah alokasi pada Pos Dana Masa Depan dalam "
-                "bentuk investasi yang AMAN dan MENGUNTUNGKAN. Hindari hanya menabung, "
-                "gunakan instrumen investasi seperti reksa dana, obligasi, atau emas "
-                "untuk mengoptimalkan dana surplus Anda."
-            )
-            box_color = '#C8E6C9'
-            text_color = '#2E7D32'
-        
-        # Wrap text
-        words = recommendation_text.split()
-        lines = []
-        current_line = []
-        for word in words:
-            current_line.append(word)
-            if len(' '.join(current_line)) > 70:
-                lines.append(' '.join(current_line[:-1]))
-                current_line = [word]
-        if current_line:
-            lines.append(' '.join(current_line))
-        
-        box_height = len(lines) * 0.018 + 0.02
-        rect = mpatches.Rectangle((0.1, y_pos-box_height), 0.8, box_height, 
-                                  linewidth=1, edgecolor=text_color, 
-                                  facecolor=box_color, alpha=0.3)
-        fig.add_artist(rect)
-        
-        for i, line in enumerate(lines):
-            plt.text(0.12, y_pos - 0.015 - (i * 0.018), line, 
-                    fontsize=9, color=text_color, va='top')
-        
-        # Footer
-        plt.text(0.5, 0.02, '💡 AKTA - Anggaran Keuangan Tahunan', 
-                ha='center', fontsize=9, style='italic', color='gray')
-        plt.text(0.5, 0.01, 'Membantu Anda merencanakan keuangan dengan lebih baik', 
-                ha='center', fontsize=8, style='italic', color='gray')
-        
-        plt.xlim(0, 1)
-        plt.ylim(0, 1)
-        plt.axis('off')
-        
-        pdf.savefig(fig, bbox_inches='tight')
-        plt.close()
-    
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=1.8 * cm, rightMargin=1.8 * cm,
+        topMargin=1.5 * cm, bottomMargin=1.5 * cm,
+    )
+
+    S = _pdf_styles()
+    story = []
+    page_w = A4[0] - 3.6 * cm
+
+    # ── JUDUL ──────────────────────────────────────────────────────────────
+    story.append(Paragraph("ANGGARAN KEUANGAN TAHUNAN (AKTA)", S['title']))
+    story.append(Paragraph("Laporan Perencanaan Keuangan Pribadi", S['subtitle']))
+    story.append(HRFlowable(width="100%", thickness=2, color=_C_GREEN_MED, spaceAfter=8))
+
+    # ── DATA DIRI ──────────────────────────────────────────────────────────
+    story.append(Paragraph("DATA DIRI", S['section']))
+
+    info_data = [
+        [Paragraph("<b>Nama</b>", S['normal']),
+         Paragraph(name, S['normal'])],
+        [Paragraph("<b>Usia</b>", S['normal']),
+         Paragraph(f"{age} tahun", S['normal'])],
+        [Paragraph("<b>Tanggal Dibuat</b>", S['normal']),
+         Paragraph(datetime.now().strftime("%d %B %Y"), S['normal'])],
+    ]
+    info_tbl = Table(info_data, colWidths=[4 * cm, page_w - 4 * cm])
+    info_tbl.setStyle(TableStyle([
+        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [_C_STRIPE, colors.white]),
+        ('GRID',          (0, 0), (-1, -1), 0.4, colors.HexColor('#E0E0E0')),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(info_tbl)
+    story.append(Spacer(1, 8))
+
+    # ── PEMASUKAN TAHUNAN ──────────────────────────────────────────────────
+    story.append(Paragraph("PEMASUKAN TAHUNAN", S['section']))
+
+    def _rp(v, bold=False):
+        txt = f"<b>{format_idr(v)}</b>" if bold else format_idr(v)
+        return Paragraph(txt, S['right'])
+
+    masuk_data = [
+        [Paragraph("<b>Keterangan</b>", S['normal']),
+         Paragraph("<b>Jumlah</b>", S['normal'])],
+        [Paragraph("Pemasukan Tetap", S['normal']),         _rp(tetap)],
+        [Paragraph("Pemasukan Tidak Tetap", S['normal']),   _rp(tidak_tetap)],
+        [Paragraph("<b>Total Pemasukan</b>", S['normal']),  _rp(total_pemasukan, bold=True)],
+        [Paragraph("Harga Per Gram Emas", S['normal']),     _rp(harga_emas)],
+    ]
+    masuk_tbl = Table(masuk_data, colWidths=[page_w * 0.55, page_w * 0.45])
+    masuk_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0), _C_GREEN_MED),
+        ('TEXTCOLOR',     (0, 0), (-1, 0), colors.white),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_C_STRIPE, colors.white]),
+        ('BACKGROUND',    (0, 3), (-1, 3), _C_GREEN_LIGHT),
+        ('GRID',          (0, 0), (-1, -1), 0.4, colors.HexColor('#BDBDBD')),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(masuk_tbl)
+    story.append(Spacer(1, 10))
+
+    # ── PENGELUARAN TAHUNAN ────────────────────────────────────────────────
+    story.append(Paragraph("PENGELUARAN TAHUNAN", S['section']))
+    story.append(Paragraph(
+        "Pengeluaran tahunan ini merupakan pengeluaran yang dibagi pos sesuai "
+        "prioritas pengeluaran keuangan.", S['caption']))
+
+    def _pct(t): return Paragraph(t, S['center'])
+    def _rpb(v): return Paragraph(f"<b>{format_idr(v)}</b>", S['right'])
+
+    keluar_header = [
+        Paragraph("<b>Pos Pengeluaran</b>", S['normal']),
+        Paragraph("<b>Persentase</b>", S['normal']),
+        Paragraph("<b>Jumlah Tahunan</b>", S['normal']),
+        Paragraph("<b>Jumlah Bulanan</b>", S['normal']),
+    ]
+    keluar_rows = [
+        [Paragraph("Pos Zakat", S['normal']),
+         _pct("2,5%"), _rp(allocations['zakat']), _rp(allocations['zakat'] / 12)],
+        [Paragraph("Pos ISWAF", S['normal']),
+         _pct("Maks 7,5%"), _rp(allocations['iswaf']), _rp(allocations['iswaf'] / 12)],
+        [Paragraph("<b>Pos Utang</b>", S['normal']),
+         _pct("Maks 35%"), _rpb(allocations['utang_total']), _rpb(allocations['utang_total'] / 12)],
+        [Paragraph("   \u2514\u2500 a. Utang Produktif", S['normal']),
+         _pct("Maks 20%"), _rp(allocations['utang_produktif']), _rp(allocations['utang_produktif'] / 12)],
+        [Paragraph("   \u2514\u2500 b. Utang Konsumtif", S['normal']),
+         _pct("Maks 15%"), _rp(allocations['utang_konsumtif']), _rp(allocations['utang_konsumtif'] / 12)],
+        [Paragraph("Pos Kontribusi Asuransi Syariah", S['normal']),
+         _pct("Min 10%"), _rp(allocations['kontribusi_asuransi']), _rp(allocations['kontribusi_asuransi'] / 12)],
+        [Paragraph("Pos Dana Masa Depan", S['normal']),
+         _pct("Min 10%"), _rp(allocations['dana_masa_depan']), _rp(allocations['dana_masa_depan'] / 12)],
+        [Paragraph("Pos Belanja Sekarang", S['normal']),
+         _pct("Sisa"), _rp(allocations['belanja_sekarang']), _rp(allocations['belanja_sekarang'] / 12)],
+    ]
+
+    cw = [page_w * 0.38, page_w * 0.14, page_w * 0.24, page_w * 0.24]
+    keluar_tbl = Table([keluar_header] + keluar_rows, colWidths=cw, repeatRows=1)
+    keluar_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0), _C_GREEN_MED),
+        ('TEXTCOLOR',     (0, 0), (-1, 0), colors.white),
+        ('LINEBELOW',     (0, 0), (-1, 0), 1.5, _C_GREEN_DARK),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_C_STRIPE, colors.white]),
+        # Highlight Pos Utang dan sub-baris
+        ('BACKGROUND',    (0, 3), (-1, 3), _C_GREEN_PALE),
+        ('BACKGROUND',    (0, 4), (-1, 5), _C_GREEN_PALE),
+        ('GRID',          (0, 0), (-1, -1), 0.4, colors.HexColor('#BDBDBD')),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(keluar_tbl)
+    story.append(Spacer(1, 6))
+
+    # ── TOTAL & STATUS ─────────────────────────────────────────────────────
+    surplus_defisit = allocations['surplus_defisit']
+    status_label = "SURPLUS" if surplus_defisit >= 0 else "DEFISIT"
+    status_bg    = _C_GREEN_MED if surplus_defisit >= 0 else _C_RED_DARK
+
+    def _white_bold(t):
+        return Paragraph(f"<font color='white'><b>{t}</b></font>", S['right'])
+
+    total_data = [
+        [Paragraph("<b>Total Anggaran</b>", S['normal']),
+         _rpb(allocations['total_anggaran']),
+         _rpb(allocations['total_anggaran'] / 12)],
+        [Paragraph(f"<font color='white'><b>Status: {status_label}</b></font>", S['normal']),
+         _white_bold(format_idr(abs(surplus_defisit))),
+         _white_bold(format_idr(abs(surplus_defisit) / 12))],
+    ]
+    total_tbl = Table(total_data, colWidths=[page_w * 0.52, page_w * 0.24, page_w * 0.24])
+    total_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0), _C_GREEN_LIGHT),
+        ('BACKGROUND',    (0, 1), (-1, 1), status_bg),
+        ('LINEABOVE',     (0, 0), (-1, 0), 1.5, _C_GREEN_DARK),
+        ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#BDBDBD')),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(total_tbl)
+    story.append(Spacer(1, 10))
+
+    # ── REKOMENDASI ────────────────────────────────────────────────────────
+    if surplus_defisit < 0:
+        rec_text = (
+            "<b>PERINGATAN:</b> Anggaran Anda mengalami <b>DEFISIT</b>. "
+            "Silakan tinjau kembali pos-pos pengeluaran yang mungkin melebihi persentase "
+            "yang disarankan. Pertimbangkan untuk mengurangi pos Belanja Sekarang atau "
+            "meningkatkan pemasukan."
+        )
+        rec_style, rec_bg, rec_border = S['rec_defisit'], _C_RED_LIGHT, _C_RED_DARK
+    else:
+        rec_text = (
+            "<b>SELAMAT:</b> Anggaran Anda mengalami <b>SURPLUS</b>! "
+            "Disarankan untuk menambah alokasi pada Pos Dana Masa Depan dalam bentuk "
+            "investasi yang <b>AMAN dan MENGUNTUNGKAN</b>. Hindari hanya menabung; "
+            "gunakan instrumen investasi seperti reksa dana, obligasi, atau emas untuk "
+            "mengoptimalkan dana surplus Anda."
+        )
+        rec_style, rec_bg, rec_border = S['rec_surplus'], _C_GREEN_LIGHT, _C_GREEN_MED
+
+    rec_tbl = Table([[Paragraph(rec_text, rec_style)]], colWidths=[page_w])
+    rec_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), rec_bg),
+        ('BOX',           (0, 0), (-1, -1), 1.2, rec_border),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 10),
+        ('TOPPADDING',    (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(rec_tbl)
+    story.append(Spacer(1, 14))
+
+    # ── FOOTER ─────────────────────────────────────────────────────────────
+    story.append(HRFlowable(width="100%", thickness=1, color=_C_GREEN_MED, spaceAfter=4))
+    story.append(Paragraph(
+        "AKTA - Anggaran Keuangan Tahunan | "
+        "Membantu Anda merencanakan keuangan dengan lebih baik",
+        S['footer']
+    ))
+
+    doc.build(story)
     buffer.seek(0)
     return buffer
 
